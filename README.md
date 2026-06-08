@@ -309,3 +309,4 @@ gestocaisse/
 ---
 
 GestoCaisse — © 2026. Tous droits réservés.
+"# GestoGaisse" 
