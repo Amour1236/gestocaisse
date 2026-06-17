@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect, ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './store/authStore';
@@ -20,8 +20,14 @@ import Parametres from './pages/Parametres';
 import Abonnement from './pages/Abonnement';
 import AdminPanel from './pages/admin/AdminPanel';
 import { Loader2 } from 'lucide-react';
+import { User } from './types';
 
-const Protected = ({ children, roles }) => {
+interface ProtectedProps {
+  children: ReactNode;
+  roles?: User['role'][];
+}
+
+const Protected = ({ children, roles }: ProtectedProps) => {
   const { user, token, initialized } = useAuthStore();
   if (!initialized) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 text-gray-600 dark:text-gray-300">
@@ -33,7 +39,7 @@ const Protected = ({ children, roles }) => {
   );
   if (!token || !user) return <Navigate to="/connexion" replace />;
   if (roles && !roles.includes(user.role)) return <Navigate to="/app" replace />;
-  return children;
+  return <>{children}</>;
 };
 
 const NotFound = () => (
@@ -54,29 +60,32 @@ const AppRoutes = () => {
   return (
     <>
       {showFloatingThemeToggle && <ThemeToggle floating />}
-      <Toaster position="top-right" toastOptions={{
-        duration: 3500,
-        style: { borderRadius: '12px', fontFamily: 'Plus Jakarta Sans', fontSize: '14px', fontWeight: '600' },
-        success: { iconTheme: { primary: '#059669', secondary: '#fff' } },
-        error:   { iconTheme: { primary: '#dc2626', secondary: '#fff' } },
-      }}/>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3500,
+          style: { borderRadius: '12px', fontFamily: 'Plus Jakarta Sans', fontSize: '14px', fontWeight: '600' },
+          success: { iconTheme: { primary: '#059669', secondary: '#fff' } },
+          error: { iconTheme: { primary: '#dc2626', secondary: '#fff' } },
+        }}
+      />
       <Routes>
-        <Route path="/"                       element={<Accueil />} />
-        <Route path="/connexion"              element={<Connexion />} />
-        <Route path="/inscription"            element={<Inscription />} />
+        <Route path="/" element={<Accueil />} />
+        <Route path="/connexion" element={<Connexion />} />
+        <Route path="/inscription" element={<Inscription />} />
         <Route path="/confirmer-email/:token" element={<ConfirmerEmail />} />
-        <Route path="/reset-password/:token"  element={<ResetPassword />} />
-        <Route path="/mot-de-passe-oublie"    element={<ResetPassword mode="request" />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/mot-de-passe-oublie" element={<ResetPassword mode="request" />} />
 
         <Route path="/app" element={<Protected><Layout /></Protected>}>
-          <Route index                          element={<Dashboard />} />
-          <Route path="caisse"                  element={<Caisse />} />
-          <Route path="ventes"                  element={<HistoriqueVentes />} />
-          <Route path="stock"                   element={<Stock />} />
-          <Route path="clients"                 element={<Clients />} />
-          <Route path="rapports"                element={<Rapports />} />
-          <Route path="parametres"              element={<Parametres />} />
-          <Route path="abonnement"              element={<Abonnement />} />
+          <Route index element={<Dashboard />} />
+          <Route path="caisse" element={<Caisse />} />
+          <Route path="ventes" element={<HistoriqueVentes />} />
+          <Route path="stock" element={<Stock />} />
+          <Route path="clients" element={<Clients />} />
+          <Route path="rapports" element={<Rapports />} />
+          <Route path="parametres" element={<Parametres />} />
+          <Route path="abonnement" element={<Abonnement />} />
           <Route path="admin" element={<Protected roles={['admin']}><AdminPanel /></Protected>} />
         </Route>
         <Route path="*" element={<NotFound />} />

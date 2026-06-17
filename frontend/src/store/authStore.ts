@@ -1,7 +1,20 @@
 import { create } from 'zustand';
 import { authAPI } from '../services/api';
+import { User } from '../types';
 
-export const useAuthStore = create((set, get) => ({
+interface AuthState {
+  user: User | null;
+  token: string | null;
+  loading: boolean;
+  initialized: boolean;
+  init: () => Promise<void>;
+  connexion: (email: string, mot_de_passe: string) => Promise<{ success: boolean; message?: string }>;
+  loginWithToken: (token: string, user: User) => void;
+  deconnexion: (opts?: { redirect?: boolean }) => void;
+  refreshUser: () => Promise<void>;
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: null,
   loading: false,
@@ -11,16 +24,16 @@ export const useAuthStore = create((set, get) => ({
     const token = localStorage.getItem('gc_token');
     const userStr = localStorage.getItem('gc_user');
     if (token && userStr) {
-      let cachedUser = null;
+      let cachedUser: User | null = null;
       try {
-        cachedUser = JSON.parse(userStr);
+        cachedUser = JSON.parse(userStr) as User;
         set({ token, user: cachedUser, initialized: true });
         const { data } = await authAPI.moi();
-        if (data.success) {
+        if (data.success && data.user) {
           set({ user: data.user });
           localStorage.setItem('gc_user', JSON.stringify(data.user));
         }
-      } catch (err) {
+      } catch (err: any) {
         if (err.response?.status === 401) {
           get().deconnexion({ redirect: false });
           return;
@@ -36,13 +49,13 @@ export const useAuthStore = create((set, get) => ({
     set({ loading: true });
     try {
       const { data } = await authAPI.connexion({ email, mot_de_passe });
-      if (data.success) {
+      if (data.success && data.token && data.user) {
         localStorage.setItem('gc_token', data.token);
         localStorage.setItem('gc_user', JSON.stringify(data.user));
         set({ token: data.token, user: data.user, loading: false });
         return { success: true };
       }
-    } catch (err) {
+    } catch (err: any) {
       set({ loading: false });
       return { success: false, message: err.response?.data?.message || 'Erreur de connexion' };
     }
@@ -50,7 +63,6 @@ export const useAuthStore = create((set, get) => ({
     return { success: false, message: 'Erreur inconnue' };
   },
 
-  // Connexion après inscription (token déjà disponible)
   loginWithToken: (token, user) => {
     localStorage.setItem('gc_token', token);
     localStorage.setItem('gc_user', JSON.stringify(user));
@@ -67,7 +79,7 @@ export const useAuthStore = create((set, get) => ({
   refreshUser: async () => {
     try {
       const { data } = await authAPI.moi();
-      if (data.success) {
+      if (data.success && data.user) {
         set({ user: data.user });
         localStorage.setItem('gc_user', JSON.stringify(data.user));
       }

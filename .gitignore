@@ -1,7 +1,13 @@
 node_modules/
 .env
 .env.local
+.env.production
 build/
 dist/
 *.log
 .DS_Store
+.venv/
+__pycache__/
+*.pyc
+.vercel/
+.railway/
