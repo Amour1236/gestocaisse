@@ -25,7 +25,7 @@ export default function HistoriqueVentes() {
       const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v));
       const { data } = await ventesAPI.historique(params);
       setGroupes(data.data || []);
-      setResume(data.resume || null);
+      setResume((data as any).resume || null);
     } catch (e) {
       setError(e.response?.data || { message: 'Impossible de charger l historique.' });
       setGroupes([]);

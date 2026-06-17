@@ -44,7 +44,7 @@ export default function Dashboard() {
       ]);
       setStats(rs.data.data || {});
       setAlertes(ra.data.data || []);
-      setVentes((rv.data.data?.ventes || []).slice(0, 5));
+      setVentes(((rv.data.data as any)?.ventes || []).slice(0, 5));
     } catch {}
     setLoading(false);
   };

@@ -17,15 +17,15 @@ export default function Operations() {
 
   const loadCaisse = async () => {
     const [active, all] = await Promise.all([caisseAPI.sessionActive(), caisseAPI.sessions().catch(() => ({ data: { data: [] } }))]);
-    setSession(active.data.data);
-    setSessions(all.data.data || []);
+    setSession(active.data.data as any);
+    setSessions((all.data.data as any[]) || []);
   };
 
   useEffect(() => { loadCaisse(); }, []);
   useEffect(() => {
-    if (tab === 'documents') documentsAPI.liste().then(r => setDocuments(r.data.data || []));
-    if (tab === 'notifications') notificationsAPI.liste().then(r => setNotifications(r.data.data || []));
-    if (tab === 'audit') auditAPI.liste().then(r => setLogs(r.data.data || []));
+    if (tab === 'documents') documentsAPI.liste().then(r => setDocuments((r.data.data as any[]) || []));
+    if (tab === 'notifications') notificationsAPI.liste().then(r => setNotifications((r.data.data as any[]) || []));
+    if (tab === 'audit') auditAPI.liste().then(r => setLogs((r.data.data as any[]) || []));
   }, [tab]);
 
   const ouvrir = async () => {
@@ -62,7 +62,7 @@ export default function Operations() {
       const res = await notificationsAPI.generer();
       toast.success(res.data.message);
       const list = await notificationsAPI.liste();
-      setNotifications(list.data.data || []);
+      setNotifications((list.data.data as any[]) || []);
     } catch (err) { toast.error(err.response?.data?.message || 'Erreur notifications.'); }
   };
 
@@ -126,7 +126,7 @@ export default function Operations() {
         <div className="card overflow-hidden">
           <table className="w-full text-sm"><thead className="bg-gray-50 text-xs text-gray-500 uppercase"><tr><th className="px-4 py-3 text-left">Document</th><th className="px-4 py-3">Type</th><th className="px-4 py-3 text-right">Total</th><th className="px-4 py-3"></th></tr></thead><tbody className="divide-y divide-gray-50">
             {documents.map(d => <tr key={d.id}><td className="px-4 py-3 font-mono">{d.numero}<p className="text-xs text-gray-400">{formatDateTime(d.created_at)}</p></td><td className="px-4 py-3 text-center">{d.type}</td><td className="px-4 py-3 text-right">{formatFCFA(d.total)}</td><td className="px-4 py-3 text-right"><a className="btn btn-secondary btn-sm" href={documentsAPI.htmlUrl(d.id)} target="_blank" rel="noreferrer">Ouvrir PDF</a></td></tr>)}
-            {documents.length === 0 && <tr><td colSpan="4" className="py-8 text-center text-gray-400">Aucun document généré</td></tr>}
+            {documents.length === 0 && <tr><td colSpan={4} className="py-8 text-center text-gray-400">Aucun document généré</td></tr>}
           </tbody></table>
         </div>
       )}

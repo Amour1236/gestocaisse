@@ -26,7 +26,7 @@ export default function Clients() {
     setSelected(c);
     const [v, cr] = await Promise.all([clientsAPI.ventes(c.id), clientsAPI.credits(c.id)]);
     setVentes(v.data.data);
-    setCredits(cr.data.data);
+    setCredits((cr.data.data as any) || []);
   };
 
   const filtres = clients.filter(c =>
@@ -48,7 +48,7 @@ export default function Clients() {
   const handleRembourser = async () => {
     if (!rembMontant || Number(rembMontant) <= 0) return toast.error('Montant invalide.');
     try {
-      await clientsAPI.rembourser(rembModal.id, Number(rembMontant));
+      await clientsAPI.rembourser(rembModal.id, { montant: Number(rembMontant) });
       toast.success('Remboursement enregistré.');
       setRembModal(null); setRembMontant('');
       loadClient(selected);

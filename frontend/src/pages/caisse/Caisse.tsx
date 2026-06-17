@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { produitsAPI, ventesAPI, clientsAPI } from '../../services/api';
+import type { Produit } from '../../types';
 import { offlineStore } from '../../services/offlineDb';
 import { formatFCFA, formatDateTime } from '../../utils/format';
 import toast from 'react-hot-toast';
@@ -89,7 +90,7 @@ export default function Caisse() {
   };
 
   const ajusterPanierAvecStock = (panierCourant, produitsData) => {
-    const stockParProduit = new Map(produitsData.map(p => [p.id, p]));
+    const stockParProduit = new Map<string, Produit>(produitsData.map((p: Produit) => [p.id, p]));
     let ajustements = 0;
 
     const panierAjuste = (panierCourant || [])

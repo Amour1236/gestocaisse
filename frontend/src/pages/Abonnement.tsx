@@ -29,7 +29,7 @@ export default function Abonnement() {
     try {
       if (methode === 'stripe') {
         const { data } = await paiementsAPI.stripeCheckout(plan_id);
-        window.location.href = data.url;
+        window.location.href = (data as any).url;
       } else {
         const { data } = await paiementsAPI.momoInitier(plan_id);
         setMomoInfo(data);

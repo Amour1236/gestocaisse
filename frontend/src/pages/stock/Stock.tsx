@@ -55,8 +55,8 @@ export default function Stock() {
     if (!form.nom || !form.prix_vente) return toast.error('Nom et prix requis.');
     setLoading(true);
     try {
-      if (editingId) { await produitsAPI.modifier(editingId, form); toast.success('Produit mis a jour.'); }
-      else { await produitsAPI.creer(form); toast.success('Produit cree.'); }
+      if (editingId) { await produitsAPI.modifier(editingId, form as any); toast.success('Produit mis a jour.'); }
+      else { await produitsAPI.creer(form as any); toast.success('Produit cree.'); }
       setShowForm(false); setForm(EMPTY_FORM); setEditingId(null);
       await load();
     } catch (err) {
@@ -215,7 +215,7 @@ export default function Stock() {
                     </tr>
                   );
                 })}
-                {filtres.length === 0 && <tr><td colSpan="5" className="text-center py-10 text-gray-400">Aucun produit trouve</td></tr>}
+                {filtres.length === 0 && <tr><td colSpan={5} className="text-center py-10 text-gray-400">Aucun produit trouve</td></tr>}
               </tbody>
             </table>
           </div>
@@ -267,7 +267,7 @@ export default function Stock() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="label">Stock actuel</label><input type="number" min="0" className="input" value={form.stock_actuel} onChange={e => setForm({...form, stock_actuel: e.target.value})} /></div>
-                <div><label className="label">Stock minimum</label><input type="number" min="0" className="input" value={form.stock_minimum} onChange={e => setForm({...form, stock_minimum: e.target.value})} /></div>
+                <div><label className="label">Stock minimum</label><input type="number" min="0" className="input" value={form.stock_minimum} onChange={e => setForm({...form, stock_minimum: Number(e.target.value)})} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="label">Categorie</label>

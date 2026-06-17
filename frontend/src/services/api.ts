@@ -162,4 +162,36 @@ export const adminAPI = {
     api.delete(`/admin/users/${id}`),
 };
 
+export const caisseAPI = {
+  sessionActive: (): Promise<AxiosResponse<ApiResponse>> =>
+    api.get('/caisse/session-active'),
+  sessions: (p: Record<string, unknown> = {}): Promise<AxiosResponse<ApiResponse>> =>
+    api.get('/caisse/sessions', { params: p }),
+  ouvrir: (d: Record<string, unknown>): Promise<AxiosResponse<ApiResponse>> =>
+    api.post('/caisse/ouvrir', d),
+  fermer: (id: string, d: Record<string, unknown>): Promise<AxiosResponse<ApiResponse>> =>
+    api.post(`/caisse/fermer/${id}`, d),
+  mouvement: (d: Record<string, unknown>): Promise<AxiosResponse<ApiResponse>> =>
+    api.post('/caisse/mouvement', d),
+};
+
+export const documentsAPI = {
+  liste: (p: Record<string, unknown> = {}): Promise<AxiosResponse<ApiResponse>> =>
+    api.get('/documents', { params: p }),
+  htmlUrl: (id: string): string =>
+    `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/documents/${id}/html`,
+};
+
+export const notificationsAPI = {
+  liste: (): Promise<AxiosResponse<ApiResponse>> =>
+    api.get('/notifications'),
+  generer: (): Promise<AxiosResponse<ApiResponse>> =>
+    api.post('/notifications/generer'),
+};
+
+export const auditAPI = {
+  liste: (p: Record<string, unknown> = {}): Promise<AxiosResponse<ApiResponse>> =>
+    api.get('/audit', { params: p }),
+};
+
 export default api;
