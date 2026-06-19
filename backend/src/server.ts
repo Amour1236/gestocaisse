@@ -11,7 +11,7 @@ import rateLimit from 'express-rate-limit';
 const app = express();
 
 // ─── MIDDLEWARES ─────────────────────────────────────────────────────────────
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet());
 app.use(cors({
   origin: ['http://localhost:3000', 'http://localhost:3001', process.env.FRONTEND_URL].filter(Boolean) as string[],
   credentials: true,
@@ -45,6 +45,7 @@ app.use('/api/stock',      require('./routes/stock'));
 app.use('/api/clients',    require('./routes/clients'));
 app.use('/api/rapports',   require('./routes/rapports'));
 app.use('/api/admin',      require('./routes/admin'));
+app.use('/api/momo',       require('./routes/momo'));
 
 try {
   const paiements = require('./routes/paiements');
