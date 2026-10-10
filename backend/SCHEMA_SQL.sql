@@ -71,6 +71,7 @@ create table if not exists ventes (
   caissier_id uuid references users(id),
   client_id uuid,
   numero text not null,
+  local_id text, -- pour idempotence offline
   total decimal(12,2) not null,
   remise decimal(12,2) default 0,
   total_final decimal(12,2) not null,
@@ -207,6 +208,18 @@ alter table lignes_vente
 alter table abonnements drop constraint if exists abonnements_statut_check;
 alter table abonnements add constraint abonnements_statut_check
   check(statut in ('actif','expire','annule','en_attente'));
+
+-- ─── INDEX DE PERFORMANCE ───────────────────────────────────────────────────
+create unique index if not exists idx_ventes_local_id on ventes (local_id) where local_id is not null;
+create index if not exists idx_ventes_boutique_created on ventes (boutique_id, created_at desc) where statut != 'annulee';
+create index if not exists idx_ventes_client_created on ventes (client_id, created_at desc) where statut != 'annulee';
+create index if not exists idx_lignes_vente_vente on lignes_vente (vente_id);
+create index if not exists idx_lignes_vente_produit on lignes_vente (produit_id);
+create index if not exists idx_produits_boutique_actif on produits (boutique_id, actif) where actif = true;
+create index if not exists idx_mouvements_stock_boutique on mouvements_stock (boutique_id, created_at desc);
+create index if not exists idx_mouvements_stock_produit on mouvements_stock (produit_id, created_at desc);
+create index if not exists idx_credits_client_boutique on credits (client_id, boutique_id);
+create index if not exists idx_clients_boutique on clients (boutique_id);
 
 alter table boutiques disable row level security;
 alter table users disable row level security;

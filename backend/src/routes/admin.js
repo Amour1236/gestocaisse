@@ -50,7 +50,7 @@ router.get('/users', proteger, autoriser('admin'), async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('id, nom, prenom, email, role, actif, created_at, boutique_id, boutiques(nom)')
+      .select('id, nom, prenom, email, role, actif, created_at, boutique_id, boutiques!users_boutique_id_fkey(nom)')
       .order('created_at', { ascending: false });
     if (error) return res.status(500).json({ success: false, message: error.message });
     res.json({ success: true, data: data || [] });

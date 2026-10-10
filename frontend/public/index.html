@@ -2,15 +2,38 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#059669"/>
-  <meta name="description" content="GestoCaisse — Logiciel de caisse pour boutiques béninoises"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="GestoCaisse"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="description" content="GestoCaisse — Logiciel de caisse, stock et rapports pour commerçants africains. Fonctionne hors ligne. Mobile money, OHADA, WhatsApp."/>
+  <meta name="keywords" content="caisse,POS,stock,commerçant,Afrique,Bénin,OHADA,Orange Money,MoMo,Wave"/>
+  <meta name="author" content="GestoCaisse"/>
   <link rel="manifest" href="%PUBLIC_URL%/manifest.json"/>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-  <title>GestoCaisse</title>
+  <link rel="icon" type="image/png" href="%PUBLIC_URL%/Logo.png"/>
+  <link rel="apple-touch-icon" href="%PUBLIC_URL%/Logo.png"/>
+  <link rel="apple-touch-icon" sizes="192x192" href="%PUBLIC_URL%/icons/icon-192.png"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet"/>
+  <title>GestoCaisse — Logiciel de caisse pour TPE</title>
 </head>
 <body>
-  <noscript>GestoCaisse nécessite JavaScript.</noscript>
+  <noscript>GestoCaisse nécessite JavaScript pour fonctionner.</noscript>
   <div id="root"></div>
+  <script>
+    // Enregistrement du Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js')
+          .then(function(reg) {
+            console.log('✅ Service Worker enregistré:', reg.scope);
+          })
+          .catch(function(err) {
+            console.warn('❌ Service Worker échec:', err);
+          });
+      });
+    }
+  </script>
 </body>
 </html>

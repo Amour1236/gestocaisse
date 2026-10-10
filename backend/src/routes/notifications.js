@@ -3,6 +3,7 @@ const router = express.Router();
 const { supabase } = require('../database/supabase');
 const { proteger, exigerPermission } = require('../middleware/auth');
 const { auditLog } = require('../services/audit');
+const { notifierStockFaible } = require('../services/stockAlerts');
 
 const queueNotification = async (req, item) => {
   const { data, error } = await supabase.from('notifications').insert({
@@ -29,15 +30,7 @@ router.post('/generer-alertes', proteger, exigerPermission('voir_rapports'), asy
     ]);
     const destinataire = boutique?.telephone || '';
     const created = [];
-    for (const p of (produits || []).filter(p => p.stock_actuel <= p.stock_minimum)) {
-      created.push(await queueNotification(req, {
-        type: 'stock_faible',
-        canal: 'app',
-        destinataire,
-        titre: `Stock faible: ${p.nom}`,
-        message: `Stock actuel ${p.stock_actuel} ${p.unite}, minimum ${p.stock_minimum}.`,
-      }));
-    }
+    created.push(...await notifierStockFaible(req.boutique_id, (produits || []).filter(p => p.stock_actuel <= p.stock_minimum)));
     const today = new Date();
     for (const c of (credits || []).filter(c => c.date_echeance && new Date(c.date_echeance) < today)) {
       created.push(await queueNotification(req, {

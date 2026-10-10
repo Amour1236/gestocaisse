@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, FormEvent } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Loader2, CheckCircle2, ArrowLeft, Mail, Lock } from 'lucide-react';
@@ -18,7 +18,7 @@ export default function ResetPassword({ mode }: ResetPasswordProps) {
   const [form, setForm] = useState({ mot_de_passe: '', confirm: '' });
   const isRequest = mode === 'request' || !token;
 
-  const handleRequest = async (e: React.FormEvent) => {
+  const handleRequest = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     try {
@@ -34,7 +34,7 @@ export default function ResetPassword({ mode }: ResetPasswordProps) {
     setLoading(false);
   };
 
-  const handleReset = async (e: React.FormEvent) => {
+  const handleReset = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (form.mot_de_passe !== form.confirm) return toast.error('Mots de passe differents');
     setLoading(true);

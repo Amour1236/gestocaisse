@@ -3,6 +3,7 @@ const router = express.Router();
 const { supabase } = require('../database/supabase');
 const { proteger } = require('../middleware/auth');
 const { sendEmail } = require('../services/email');
+const { notifierStockFaible } = require('../services/stockAlerts');
 
 router.post('/ajustement', proteger, async (req, res) => {
   try {
@@ -13,6 +14,9 @@ router.post('/ajustement', proteger, async (req, res) => {
     const stock_apres = type === 'entree' ? stock_avant + Number(quantite) : Math.max(0, stock_avant - Number(quantite));
     await supabase.from('produits').update({ stock_actuel: stock_apres, updated_at: new Date() }).eq('id', produit_id);
     await supabase.from('mouvements_stock').insert({ boutique_id: req.boutique_id, produit_id, type, quantite: type === 'entree' ? quantite : -quantite, stock_avant, stock_apres, motif });
+    if (stock_avant > produit.stock_minimum && stock_apres <= produit.stock_minimum) {
+      await notifierStockFaible(req.boutique_id, [{ ...produit, stock_actuel: stock_apres }]);
+    }
     res.json({ success: true, message: 'Stock ajusté.', stock_apres });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });

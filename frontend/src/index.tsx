@@ -12,4 +12,14 @@ if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
+// Global error handlers to capture runtime exceptions with more detail
+window.addEventListener('error', (event) => {
+  // eslint-disable-next-line no-console
+  console.error('Global error captured:', event.message, event.error || event.filename || event);
+});
+window.addEventListener('unhandledrejection', (event) => {
+  // eslint-disable-next-line no-console
+  console.error('Unhandled promise rejection:', event.reason);
+});
+
 root.render(<React.StrictMode><App /></React.StrictMode>);

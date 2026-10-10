@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { paiementsAPI } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
-import { Check, Loader2, X } from 'lucide-react';
+import { Check, Loader2, X, Crown, Zap, Globe, Users, Lock, Award } from 'lucide-react';
 import { formatDate } from '../utils/format';
 
 const PLANS = [
@@ -18,7 +18,95 @@ export default function Abonnement() {
   const [loading, setLoading] = useState(null);
   const [momoInfo, setMomoInfo] = useState(null);
 
-  const loadPaiements = () => paiementsAPI.mesPaiements().then(r => setPaiements(r.data.data));
+  if (user?.role === 'admin') {
+    return (
+      <div className="space-y-6">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-emerald-600 to-teal-600 p-8 md:p-12 text-white shadow-2xl">
+          <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,.5) 0%, transparent 50%)'}} />
+          <div className="relative z-10 space-y-4">
+            <div className="flex items-center gap-2 text-emerald-100">
+              <Crown size={20} /> <span className="text-sm font-semibold">PLAN EXCLUSIF</span>
+            </div>
+            <h1 className="text-4xl md:text-5xl font-extrabold">Plan Business</h1>
+            <p className="text-emerald-50 text-lg">Accès administrateur premium illimité — Aucun paiement, aucune expiration.</p>
+            <div className="pt-4 flex items-center gap-3">
+              <Check className="text-emerald-200" size={24} />
+              <span className="text-emerald-100">Activé immédiatement</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="card p-6 border border-emerald-200 bg-emerald-50">
+            <div className="flex items-start gap-4 mb-3">
+              <div className="w-12 h-12 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0">
+                <Zap className="text-white" size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">Produits illimités</h3>
+                <p className="text-sm text-gray-600 mt-1">Créez et gérez autant de produits que vous le souhaitez sans limite.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-6 border border-emerald-200 bg-emerald-50">
+            <div className="flex items-start gap-4 mb-3">
+              <div className="w-12 h-12 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0">
+                <Globe className="text-white" size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">Mode hors-ligne total</h3>
+                <p className="text-sm text-gray-600 mt-1">Continuez vos opérations sans connexion internet, sync automatique.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-6 border border-emerald-200 bg-emerald-50">
+            <div className="flex items-start gap-4 mb-3">
+              <div className="w-12 h-12 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0">
+                <Users className="text-white" size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">Utilisateurs illimités</h3>
+                <p className="text-sm text-gray-600 mt-1">Ajoutez autant de caissiers et responsables que nécessaire.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-6 border border-emerald-200 bg-emerald-50">
+            <div className="flex items-start gap-4 mb-3">
+              <div className="w-12 h-12 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0">
+                <Award className="text-white" size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">Support prioritaire</h3>
+                <p className="text-sm text-gray-600 mt-1">Accès prioritaire à l'assistance technique complète.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card p-6 border-2 border-emerald-200 bg-white">
+          <div className="flex items-center gap-3 mb-4">
+            <Lock className="text-emerald-600" size={20} />
+            <h3 className="font-bold text-gray-900">Statut administrateur</h3>
+          </div>
+          <p className="text-gray-600 text-sm">
+            Votre compte administrateur dispose d'une accréditation permanente et complète. Tous les systèmes de tarification sont désactivés pour votre rôle. Profitez de l'intégralité des fonctionnalités sans aucune restriction.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const loadPaiements = async () => {
+    try {
+      const response = await paiementsAPI.mesPaiements();
+      setPaiements(response.data.data || []);
+    } catch {
+      setPaiements([]);
+    }
+  };
 
   useEffect(() => { loadPaiements(); }, []);
 

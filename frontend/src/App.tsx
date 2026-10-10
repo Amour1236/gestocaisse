@@ -1,29 +1,37 @@
-import { useEffect, ReactNode } from 'react';
+import { lazy, Suspense, useEffect, ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './store/authStore';
 import ThemeToggle from './components/ui/ThemeToggle';
+import PageTransition from './components/ui/PageTransition';
+import { AnimatePresence } from 'framer-motion';
 
 import Accueil from './pages/Accueil';
 import Layout from './components/layout/Layout';
 import Connexion from './pages/auth/Connexion';
 import Inscription from './pages/auth/Inscription';
-import ConfirmerEmail from './pages/auth/ConfirmerEmail';
-import ResetPassword from './pages/auth/ResetPassword';
-import Dashboard from './pages/Dashboard';
-import Caisse from './pages/caisse/Caisse';
-import HistoriqueVentes from './pages/ventes/HistoriqueVentes';
-import Stock from './pages/stock/Stock';
-import Clients from './pages/clients/Clients';
-import Rapports from './pages/rapports/Rapports';
-import Parametres from './pages/Parametres';
-import Abonnement from './pages/Abonnement';
-import AdminPanel from './pages/admin/AdminPanel';
 import { Loader2 } from 'lucide-react';
 import { User } from './types';
 
+const ConfirmerEmail = lazy(() => import('./pages/auth/ConfirmerEmail'));
+const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Caisse = lazy(() => import('./pages/caisse/Caisse'));
+const HistoriqueVentes = lazy(() => import('./pages/ventes/HistoriqueVentes'));
+const Stock = lazy(() => import('./pages/stock/Stock'));
+const Inventaire = lazy(() => import('./pages/stock/Inventaire'));
+const Bons = lazy(() => import('./pages/stock/Bons'));
+const Fournisseurs = lazy(() => import('./pages/stock/Fournisseurs'));
+const Commandes = lazy(() => import('./pages/stock/Commandes'));
+const RapportsStock = lazy(() => import('./pages/stock/RapportsStock'));
+const Clients = lazy(() => import('./pages/clients/Clients'));
+const Rapports = lazy(() => import('./pages/rapports/Rapports'));
+const Parametres = lazy(() => import('./pages/Parametres'));
+const Abonnement = lazy(() => import('./pages/Abonnement'));
+const AdminPanel = lazy(() => import('./pages/admin/AdminPanel'));
+
 interface ProtectedProps {
-  children: ReactNode;
+  children?: ReactNode;
   roles?: User['role'][];
 }
 
@@ -53,9 +61,18 @@ const NotFound = () => (
   </div>
 );
 
+const PageLoader = () => (
+  <div className="min-h-[40vh] flex items-center justify-center text-gray-500 dark:text-gray-300">
+    <div className="flex items-center gap-3 font-semibold">
+      <Loader2 size={20} className="animate-spin text-emerald-600" />
+      Chargement...
+    </div>
+  </div>
+);
+
 const AppRoutes = () => {
   const location = useLocation();
-  const showFloatingThemeToggle = !location.pathname.startsWith('/app');
+  const showFloatingThemeToggle = !location?.pathname?.startsWith('/app');
 
   return (
     <>
@@ -69,27 +86,36 @@ const AppRoutes = () => {
           error: { iconTheme: { primary: '#dc2626', secondary: '#fff' } },
         }}
       />
-      <Routes>
-        <Route path="/" element={<Accueil />} />
-        <Route path="/connexion" element={<Connexion />} />
-        <Route path="/inscription" element={<Inscription />} />
-        <Route path="/confirmer-email/:token" element={<ConfirmerEmail />} />
-        <Route path="/reset-password/:token" element={<ResetPassword />} />
-        <Route path="/mot-de-passe-oublie" element={<ResetPassword mode="request" />} />
+      <AnimatePresence mode="wait">
+      <Suspense fallback={<PageLoader />}>
+        <Routes location={location} key={location.key}>
+          <Route path="/" element={<PageTransition><Accueil /></PageTransition>} />
+          <Route path="/connexion" element={<PageTransition><Connexion /></PageTransition>} />
+          <Route path="/inscription" element={<PageTransition><Inscription /></PageTransition>} />
+          <Route path="/confirmer-email/:token" element={<PageTransition><ConfirmerEmail /></PageTransition>} />
+          <Route path="/reset-password/:token" element={<PageTransition><ResetPassword /></PageTransition>} />
+          <Route path="/mot-de-passe-oublie" element={<PageTransition><ResetPassword mode="request" /></PageTransition>} />
 
-        <Route path="/app" element={<Protected><Layout /></Protected>}>
-          <Route index element={<Dashboard />} />
-          <Route path="caisse" element={<Caisse />} />
-          <Route path="ventes" element={<HistoriqueVentes />} />
-          <Route path="stock" element={<Stock />} />
-          <Route path="clients" element={<Clients />} />
-          <Route path="rapports" element={<Rapports />} />
-          <Route path="parametres" element={<Parametres />} />
-          <Route path="abonnement" element={<Abonnement />} />
-          <Route path="admin" element={<Protected roles={['admin']}><AdminPanel /></Protected>} />
-        </Route>
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+          <Route path="/app" element={<Protected><Layout /></Protected>}>
+            <Route index element={<PageTransition><Dashboard /></PageTransition>} />
+            <Route path="caisse" element={<PageTransition><Caisse /></PageTransition>} />
+            <Route path="ventes" element={<PageTransition><HistoriqueVentes /></PageTransition>} />
+            <Route path="stock" element={<PageTransition><Stock /></PageTransition>} />
+            <Route path="stock/inventaire" element={<PageTransition><Inventaire /></PageTransition>} />
+            <Route path="stock/bons" element={<PageTransition><Bons /></PageTransition>} />
+            <Route path="stock/fournisseurs" element={<PageTransition><Fournisseurs /></PageTransition>} />
+            <Route path="stock/commandes" element={<PageTransition><Commandes /></PageTransition>} />
+            <Route path="stock/rapports" element={<PageTransition><RapportsStock /></PageTransition>} />
+            <Route path="clients" element={<PageTransition><Clients /></PageTransition>} />
+            <Route path="rapports" element={<PageTransition><Rapports /></PageTransition>} />
+            <Route path="parametres" element={<PageTransition><Parametres /></PageTransition>} />
+            <Route path="abonnement" element={<PageTransition><Abonnement /></PageTransition>} />
+            <Route path="admin" element={<Protected roles={['admin']}><PageTransition><AdminPanel /></PageTransition></Protected>} />
+          </Route>
+          <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />
+        </Routes>
+      </Suspense>
+      </AnimatePresence>
     </>
   );
 };

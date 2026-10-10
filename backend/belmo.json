@@ -1,0 +1,21 @@
+{
+  "name": "gestocaisse-backend",
+  "version": "1.0.0",
+  "description": "Backend GestoCaisse — déploiement Belmo.io",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "build": {
+    "command": "npm install"
+  },
+  "deploy": {
+    "rootDirectory": "backend",
+    "buildCommand": "npm install",
+    "startCommand": "node src/server.js",
+    "healthcheck": "/api/health"
+  }
+}

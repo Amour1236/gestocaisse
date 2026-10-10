@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { produitsAPI, categoriesAPI, stockAPI } from '../../services/api';
+import { Link, useLocation } from 'react-router-dom';
+import { produitsAPI, categoriesAPI, stockAPI, fournisseursAPI } from '../../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Search, AlertTriangle, ArrowUp, ArrowDown, Edit2, Trash2, X, Loader2, Package } from 'lucide-react';
+import { Plus, Search, AlertTriangle, ArrowUp, ArrowDown, Edit2, Trash2, X, Loader2, Package, ClipboardList, FileText, BarChart3, MapPin, Package2 } from 'lucide-react';
 import { formatFCFA } from '../../utils/format';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import { useAuthStore } from '../../store/authStore';
 
-const EMPTY_FORM = { nom:'', prix_vente:'', prix_achat:'', stock_actuel:'', stock_minimum:5, categorie_id:'', code_barre:'', unite:'unite', description:'' };
+const EMPTY_FORM = {
+  nom: '', prix_vente: '', prix_achat: '', stock_actuel: '', stock_minimum: 5,
+  stock_maximum: 100, emplacement: '', delai_reapprovisionnement: 7, fournisseur_id: '',
+  categorie_id: '', code_barre: '', unite: 'unite', description: ''
+};
 
 export default function Stock() {
   const { user } = useAuthStore();
   const [produits, setProduits] = useState([]);
   const [categories, setCategories] = useState([]);
   const [alertes, setAlertes] = useState([]);
+  const [fournisseurs, setFournisseurs] = useState([]);
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -28,13 +33,15 @@ export default function Stock() {
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const planActuel = user?.boutique?.plan || 'starter';
-  const starterLimitReached = planActuel === 'starter' && produits.length >= 5;
+  const isAdmin = user?.role === 'admin';
+  const planActuel = isAdmin ? 'business' : (user?.boutique?.plan || 'starter');
+  const starterLimitReached = !isAdmin && planActuel === 'starter' && produits.length >= 5;
 
   const load = () => Promise.all([
     produitsAPI.liste().then(r => setProduits(r.data.data)),
     categoriesAPI.liste().then(r => setCategories(r.data.data)),
     stockAPI.alertes().then(r => setAlertes(r.data.data)),
+    fournisseursAPI.liste().then(r => setFournisseurs(r.data.data || [])).catch(() => setFournisseurs([])),
   ]);
 
   useEffect(() => { load(); }, []);
@@ -45,7 +52,18 @@ export default function Stock() {
   );
 
   const openEdit = (p) => {
-    setForm({ nom:p.nom, prix_vente:p.prix_vente, prix_achat:p.prix_achat, stock_actuel:p.stock_actuel, stock_minimum:p.stock_minimum, categorie_id:p.categorie_id||'', code_barre:p.code_barre||'', unite:p.unite||'unite', description:p.description||'' });
+    setForm({
+      nom: p.nom, prix_vente: p.prix_vente, prix_achat: p.prix_achat,
+      stock_actuel: p.stock_actuel, stock_minimum: p.stock_minimum,
+      stock_maximum: p.stock_maximum || 100,
+      emplacement: p.emplacement || '',
+      delai_reapprovisionnement: p.delai_reapprovisionnement || 7,
+      fournisseur_id: p.fournisseur_id || '',
+      categorie_id: p.categorie_id || '',
+      code_barre: p.code_barre || '',
+      unite: p.unite || 'unite',
+      description: p.description || ''
+    });
     setEditingId(p.id);
     setShowForm(true);
   };
@@ -126,6 +144,28 @@ export default function Stock() {
         </div>
       )}
 
+      {/* Navigation Links */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Link to="/app/stock" className="btn btn-primary btn-sm">
+          <Package size={14}/> Produits
+        </Link>
+        <Link to="/app/stock/inventaire" className="btn btn-secondary btn-sm">
+          <ClipboardList size={14}/> Inventaire
+        </Link>
+        <Link to="/app/stock/bons" className="btn btn-secondary btn-sm">
+          <FileText size={14}/> Bons
+        </Link>
+        <Link to="/app/stock/fournisseurs" className="btn btn-secondary btn-sm">
+          <MapPin size={14}/> Fournisseurs
+        </Link>
+        <Link to="/app/stock/commandes" className="btn btn-secondary btn-sm">
+          <Package2 size={14}/> Commandes
+        </Link>
+        <Link to="/app/stock/rapports" className="btn btn-secondary btn-sm">
+          <BarChart3 size={14}/> Rapports
+        </Link>
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-2">
         {['produits','alertes'].map(t => (
@@ -180,30 +220,47 @@ export default function Stock() {
               <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
                 <tr>
                   <th className="px-4 py-3 text-left">Produit</th>
+                  <th className="px-4 py-3 text-center">Emplacement</th>
                   <th className="px-4 py-3 text-right">Prix vente</th>
-                  <th className="px-4 py-3 text-right">Marge</th>
                   <th className="px-4 py-3 text-right">Stock</th>
+                  <th className="px-4 py-3 text-center">Min/Max</th>
                   <th className="px-4 py-3 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtres.map(p => {
-                  const marge = p.prix_achat > 0 ? Math.round(((p.prix_vente - p.prix_achat) / p.prix_achat) * 100) : null;
                   const alerte = p.stock_actuel <= p.stock_minimum;
+                  const rupture = p.stock_actuel <= 0;
+                  const surstock = p.stock_maximum && p.stock_actuel > p.stock_maximum;
                   return (
                     <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
                         <p className="font-medium text-gray-900">{p.nom}</p>
                         <p className="text-xs text-gray-400">{p.categories?.nom || 'Sans categorie'}</p>
                       </td>
+                      <td className="px-4 py-3 text-center">
+                        {p.emplacement ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gray-100 text-xs font-mono font-bold text-gray-700">
+                            <MapPin size={10}/> {p.emplacement}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-right font-semibold">{formatFCFA(p.prix_vente)}</td>
                       <td className="px-4 py-3 text-right">
-                        {marge !== null ? <span className={'text-xs font-bold ' + (marge > 20 ? 'text-green-600' : marge > 0 ? 'text-amber-600' : 'text-red-600')}>{marge}%</span> : <span className="text-gray-300">-</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={'font-bold ' + (alerte ? 'text-red-600' : 'text-gray-900')}>{p.stock_actuel}</span>
+                        <span className={`font-bold text-sm ${rupture ? 'text-red-600' : alerte ? 'text-amber-600' : surstock ? 'text-blue-600' : 'text-gray-900'}`}>
+                          {p.stock_actuel}
+                        </span>
                         <span className="text-gray-400 text-xs ml-1">{p.unite}</span>
-                        {alerte && <AlertTriangle size={12} className="inline ml-1 text-amber-500"/>}
+                        {rupture && <AlertTriangle size={12} className="inline ml-1 text-red-500"/>}
+                        {!rupture && alerte && <AlertTriangle size={12} className="inline ml-1 text-amber-500"/>}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="text-xs text-gray-500">
+                          {p.stock_minimum}<span className="text-gray-300">/</span>
+                          <span className={surstock ? 'text-blue-600 font-bold' : ''}>{p.stock_maximum || '—'}</span>
+                        </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-1">
@@ -215,7 +272,7 @@ export default function Stock() {
                     </tr>
                   );
                 })}
-                {filtres.length === 0 && <tr><td colSpan={5} className="text-center py-10 text-gray-400">Aucun produit trouve</td></tr>}
+                {filtres.length === 0 && <tr><td colSpan={6} className="text-center py-10 text-gray-400">Aucun produit trouvé</td></tr>}
               </tbody>
             </table>
           </div>
@@ -265,9 +322,20 @@ export default function Stock() {
                 <div><label className="label">Prix de vente (FCFA) *</label><input type="number" min="0" className="input" placeholder="0" value={form.prix_vente} onChange={e => setForm({...form, prix_vente: e.target.value})} required /></div>
                 <div><label className="label">Prix d'achat (FCFA)</label><input type="number" min="0" className="input" placeholder="0" value={form.prix_achat} onChange={e => setForm({...form, prix_achat: e.target.value})} /></div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div><label className="label">Stock actuel</label><input type="number" min="0" className="input" value={form.stock_actuel} onChange={e => setForm({...form, stock_actuel: e.target.value})} /></div>
                 <div><label className="label">Stock minimum</label><input type="number" min="0" className="input" value={form.stock_minimum} onChange={e => setForm({...form, stock_minimum: Number(e.target.value)})} /></div>
+                <div><label className="label">Stock maximum</label><input type="number" min="0" className="input" value={form.stock_maximum} onChange={e => setForm({...form, stock_maximum: Number(e.target.value)})} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="label">Emplacement (ex: A-3-2)</label>
+                  <input className="input" placeholder="Ex: ZONE-A, Allée 3, Étagère 2"
+                    value={form.emplacement} onChange={e => setForm({...form, emplacement: e.target.value})} />
+                </div>
+                <div><label className="label">Délai réappro. (jours)</label>
+                  <input type="number" min="1" className="input" value={form.delai_reapprovisionnement}
+                    onChange={e => setForm({...form, delai_reapprovisionnement: Number(e.target.value)})} />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="label">Categorie</label>
@@ -279,6 +347,17 @@ export default function Stock() {
                 <div><label className="label">Unite</label>
                   <select className="input" value={form.unite} onChange={e => setForm({...form, unite: e.target.value})}>
                     {['unite','kg','g','l','ml','carton','sac','paquet','boite'].map(u => <option key={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="label">Fournisseur</label>
+                  <select className="input" value={form.fournisseur_id}
+                    onChange={e => setForm({...form, fournisseur_id: e.target.value})}>
+                    <option value="">Aucun</option>
+                    {fournisseurs.filter(f => f.actif).map(f => (
+                      <option key={f.id} value={f.id}>{f.nom} ({f.delai_livraison}j)</option>
+                    ))}
                   </select>
                 </div>
               </div>

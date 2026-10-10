@@ -8,7 +8,10 @@ export default function Landing() {
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-primary-600">🇧🇯 GestoCaisse</h1>
+          <div className="flex items-center gap-3">
+            <img src="/logo-gestocaisse.svg" alt="GestoCaisse" className="h-11 w-11 rounded-2xl shadow-sm object-cover" />
+            <h1 className="text-2xl font-bold text-primary-600">GestoCaisse</h1>
+          </div>
           <div className="flex gap-3">
             <Link to="/connexion" className="px-4 py-2 text-primary-600 hover:bg-gray-50 rounded-lg">
               Connexion
@@ -22,6 +25,9 @@ export default function Landing() {
 
       {/* Hero */}
       <section className="max-w-7xl mx-auto px-4 py-16 sm:px-6 lg:px-8 text-center">
+        <div className="flex justify-center mb-6">
+          <img src="/logo-gestocaisse.svg" alt="Logo GestoCaisse" className="h-28 w-28 rounded-[2rem] shadow-xl object-cover border border-emerald-100" />
+        </div>
         <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
           Caisse & Stock pour boutiques béninoises
         </h2>

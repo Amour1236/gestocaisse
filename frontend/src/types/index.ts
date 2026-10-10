@@ -43,12 +43,57 @@ export interface Produit {
   prix_vente: number;
   stock_actuel: number;
   stock_minimum: number;
+  stock_maximum?: number;
+  emplacement?: string;
+  delai_reapprovisionnement?: number;
+  fournisseur_id?: string;
   unite?: string;
   categorie_id?: string;
   categories?: Categorie;
   actif: boolean;
   created_at: string;
   updated_at?: string;
+}
+
+export interface Fournisseur {
+  id: string;
+  boutique_id: string;
+  nom: string;
+  telephone: string;
+  email: string;
+  adresse: string;
+  delai_livraison: number;
+  notes: string;
+  actif: boolean;
+  created_at: string;
+}
+
+export interface CommandeFournisseur {
+  id: string;
+  boutique_id: string;
+  fournisseur_id: string;
+  reference: string;
+  date_commande: string;
+  date_livraison_prevue: string;
+  date_livraison_reelle?: string;
+  statut: 'en_attente' | 'confirmee' | 'recue' | 'partiellement_recue' | 'annulee';
+  montant_total: number;
+  notes: string;
+  fournisseur?: { nom: string; telephone: string };
+  lignes?: LigneCommandeFournisseur[];
+}
+
+export interface LigneCommandeFournisseur {
+  id: string;
+  commande_id: string;
+  produit_id: string;
+  nom_produit: string;
+  quantite_commandee: number;
+  quantite_recue: number;
+  prix_unitaire: number;
+  total: number;
+  conforme: boolean;
+  remarque_qualite: string;
 }
 
 export interface Client {

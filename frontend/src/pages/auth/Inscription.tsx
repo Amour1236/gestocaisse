@@ -50,8 +50,11 @@ export default function Inscription() {
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <Link to="/" className="inline-block">
-            <span className="text-3xl font-extrabold text-gray-900 hover:opacity-80 transition-opacity">
+          <Link to="/" className="inline-flex flex-col items-center gap-2 hover:opacity-80 transition-opacity">
+            <div className="h-20 w-20 rounded-full bg-white shadow-md ring-2 ring-emerald-100 overflow-hidden flex items-center justify-center">
+              <img src="/Logo.png" alt="GestoCaisse" className="h-full w-full object-contain p-2" />
+            </div>
+            <span className="text-3xl font-extrabold text-gray-900">
               Gesto<span className="text-emerald-600">Caisse</span>
             </span>
           </Link>

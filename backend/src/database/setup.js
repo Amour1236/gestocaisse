@@ -6,9 +6,9 @@ const bcrypt = require('bcryptjs');
 const COMPTES_DEMO = [
   {
     prenom: 'Super', nom: 'Admin',
-    email: 'admin@gestocaisse.com',
-    mot_de_passe: 'Admin1234!',
-    nom_boutique: 'GestoCaisse Admin',
+    email: process.env.ADMIN_EMAIL,
+    mot_de_passe: process.env.ADMIN_PASSWORD,
+    nom_boutique: process.env.ADMIN_BOUTIQUE_NOM || 'GestoCaisse Admin',
     plan: 'business',
     role: 'admin',
   },
@@ -67,8 +67,6 @@ async function creerCompte(compte) {
       .eq('id', existing.id);
     if (ue) throw new Error('User: ' + ue.message);
     console.log(`  OK ${compte.email} / ${compte.mot_de_passe} - repare`);
-    return;
-    console.log(`  ⏭  ${compte.email} — existe déjà, ignoré`);
     return;
   }
 
@@ -138,6 +136,206 @@ async function creerCompte(compte) {
 }
 
 async function main() {
+  // Créer la table recus_envoyes si elle n'existe pas
+  try {
+    await supabase.query(`
+      CREATE TABLE IF NOT EXISTS public.recus_envoyes (
+        id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        vente_id    uuid REFERENCES public.ventes(id) ON DELETE SET NULL,
+        boutique_id uuid REFERENCES public.boutiques(id) ON DELETE CASCADE,
+        canal       text NOT NULL CHECK (canal IN ('sms', 'whatsapp', 'email')),
+        telephone   text,
+        contenu     text,
+        provider    text,
+        externe_id  text,
+        created_at  timestamptz DEFAULT now()
+      );
+    `);
+    console.log('  ✅ Table recus_envoyes OK');
+  } catch (e) {
+    // Table existe peut-être — on ignore
+  }
+
+  // ─── Tables pour crédits avancés (rappels, tontines) ─────────────────
+  try {
+    await supabase.query(`
+      CREATE TABLE IF NOT EXISTS public.rappels_credit (
+        id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        credit_id   uuid REFERENCES public.credits(id) ON DELETE SET NULL,
+        boutique_id uuid REFERENCES public.boutiques(id) ON DELETE CASCADE,
+        client_id   uuid REFERENCES public.clients(id) ON DELETE SET NULL,
+        canal       text NOT NULL,
+        telephone   text,
+        contenu     text,
+        provider    text,
+        externe_id  text,
+        created_at  timestamptz DEFAULT now()
+      );
+    `);
+    console.log('  ✅ Table rappels_credit OK');
+  } catch (e) { /* existe */ }
+
+  try {
+    await supabase.query(`
+      CREATE TABLE IF NOT EXISTS public.tontines (
+        id                  uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        boutique_id         uuid REFERENCES public.boutiques(id) ON DELETE CASCADE,
+        nom                 text NOT NULL,
+        montant_cotisation  numeric(12,0) NOT NULL DEFAULT 0,
+        frequence           text DEFAULT 'hebdomadaire',
+        date_debut          date,
+        statut              text DEFAULT 'active',
+        created_at          timestamptz DEFAULT now()
+      );
+    `);
+    console.log('  ✅ Table tontines OK');
+  } catch (e) { /* existe */ }
+
+  try {
+    await supabase.query(`
+      CREATE TABLE IF NOT EXISTS public.tontine_membres (
+        id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        tontine_id  uuid REFERENCES public.tontines(id) ON DELETE CASCADE,
+        client_id   uuid REFERENCES public.clients(id) ON DELETE CASCADE,
+        ordre       integer DEFAULT 1,
+        created_at  timestamptz DEFAULT now(),
+        UNIQUE(tontine_id, client_id)
+      );
+    `);
+    console.log('  ✅ Table tontine_membres OK');
+  } catch (e) { /* existe */ }
+
+  try {
+    await supabase.query(`
+      CREATE TABLE IF NOT EXISTS public.tontine_cotisations (
+        id               uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        tontine_id       uuid REFERENCES public.tontines(id) ON DELETE CASCADE,
+        membre_id        uuid REFERENCES public.tontine_membres(id) ON DELETE CASCADE,
+        montant          numeric(12,0) NOT NULL DEFAULT 0,
+        tour             integer DEFAULT 1,
+        date_cotisation  timestamptz DEFAULT now()
+      );
+    `);
+    console.log('  ✅ Table tontine_cotisations OK');
+  } catch (e) { /* existe */ }
+
+  // Colonnes supplémentaires pour crédits (date_echeance, description, taux)
+  try {
+    await supabase.query(`
+      ALTER TABLE public.credits
+        ADD COLUMN IF NOT EXISTS date_echeance date,
+        ADD COLUMN IF NOT EXISTS description text,
+        ADD COLUMN IF NOT EXISTS taux_interet numeric(5,2) DEFAULT 0;
+    `);
+    console.log('  ✅ Colonnes crédits avancées OK');
+  } catch (e) { /* existe */ }
+
+  // Table fidélité (programme de points + cashback)
+  try {
+    await supabase.query(`
+      CREATE TABLE IF NOT EXISTS public.fidelite_programmes (
+        id              uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        boutique_id     uuid REFERENCES public.boutiques(id) ON DELETE CASCADE,
+        nom             text NOT NULL DEFAULT 'Programme de fidélité',
+        points_par_fcfa numeric(8,4) DEFAULT 0.001,
+        fcfa_par_point  numeric(8,2) DEFAULT 100,
+        cashback_pct    numeric(5,2) DEFAULT 0,
+        actif           boolean DEFAULT true,
+        created_at      timestamptz DEFAULT now()
+      );
+    `);
+    console.log('  ✅ Table fidelite_programmes OK');
+  } catch (e) { /* existe */ }
+
+  try {
+    await supabase.query(`
+      CREATE TABLE IF NOT EXISTS public.fidelite_points (
+        id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        client_id   uuid REFERENCES public.clients(id) ON DELETE CASCADE,
+        boutique_id uuid REFERENCES public.boutiques(id) ON DELETE CASCADE,
+        points      integer DEFAULT 0,
+        total_gagne integer DEFAULT 0,
+        total_utilise integer DEFAULT 0,
+        updated_at  timestamptz DEFAULT now(),
+        UNIQUE(client_id, boutique_id)
+      );
+    `);
+    console.log('  ✅ Table fidelite_points OK');
+  } catch (e) { /* existe */ }
+
+  try {
+    await supabase.query(`
+      CREATE TABLE IF NOT EXISTS public.fidelite_mouvements (
+        id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        client_id   uuid REFERENCES public.clients(id) ON DELETE CASCADE,
+        boutique_id uuid REFERENCES public.boutiques(id) ON DELETE CASCADE,
+        vente_id    uuid REFERENCES public.ventes(id) ON DELETE SET NULL,
+        type        text NOT NULL,
+        points      integer NOT NULL,
+        cashback_montant numeric(12,0) DEFAULT 0,
+        note        text,
+        created_at  timestamptz DEFAULT now()
+      );
+    `);
+    console.log('  ✅ Table fidelite_mouvements OK');
+  } catch (e) { /* existe */ }
+
+  // Table transferts de stock inter-boutiques
+  try {
+    await supabase.query(`
+      CREATE TABLE IF NOT EXISTS public.transferts_stock (
+        id                uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        boutique_source   uuid REFERENCES public.boutiques(id) ON DELETE CASCADE,
+        boutique_destination uuid REFERENCES public.boutiques(id) ON DELETE CASCADE,
+        produit_id        uuid REFERENCES public.produits(id) ON DELETE CASCADE,
+        quantite          integer NOT NULL,
+        statut            text DEFAULT 'en_attente' CHECK (statut IN ('en_attente','valide','annule','recu')),
+        motif             text,
+        created_by        uuid REFERENCES public.users(id),
+        validated_by      uuid REFERENCES public.users(id),
+        created_at        timestamptz DEFAULT now(),
+        validated_at      timestamptz,
+        received_at       timestamptz
+      );
+    `);
+    console.log('  ✅ Table transferts_stock OK');
+  } catch (e) { /* existe */ }
+
+  // Table factures normalisées OHADA
+  try {
+    await supabase.query(`
+      CREATE TABLE IF NOT EXISTS public.factures_ohada (
+        id            uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        vente_id      uuid REFERENCES public.ventes(id) ON DELETE SET NULL,
+        boutique_id   uuid REFERENCES public.boutiques(id) ON DELETE CASCADE,
+        numero        text NOT NULL,
+        date_facture  date NOT NULL,
+        client_nom    text,
+        client_nif    text,
+        client_tel    text,
+        client_adresse text,
+        sous_total_ht numeric(12,2) DEFAULT 0,
+        tva_taux      numeric(5,2) DEFAULT 0,
+        tva_montant   numeric(12,2) DEFAULT 0,
+        total_ttc     numeric(12,2) DEFAULT 0,
+        timbre        numeric(12,2) DEFAULT 0,
+        net_a_payer   numeric(12,2) DEFAULT 0,
+        lignes        jsonb,
+        created_at    timestamptz DEFAULT now()
+      );
+    `);
+    console.log('  ✅ Table factures_ohada OK');
+  } catch (e) { /* existe */ }
+
+  if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) {
+    console.error('\n❌ ERREUR: ADMIN_EMAIL et ADMIN_PASSWORD requis dans .env');
+    console.error('   Renseignez des identifiants forts (jamais les valeurs par défaut).\n');
+    process.exit(1);
+  }
+  if (process.env.ADMIN_PASSWORD.length < 12) {
+    console.error('\n❌ ERREUR: ADMIN_PASSWORD doit faire au moins 12 caractères\n');
+    process.exit(1);
+  }
   console.log('\n🚀 GestoCaisse — Création des comptes démo\n');
 
   // Test connexion Supabase
@@ -163,7 +361,7 @@ async function main() {
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('🎉 Setup terminé !');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🛡  Admin : admin@gestocaisse.com / Admin1234!');
+  console.log('🛡  Admin créé avec les identifiants du .env');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   process.exit(0);
 }

@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { produitsAPI, ventesAPI, clientsAPI } from '../../services/api';
+import { fideliteAPI, recusAPI } from '../../services/api';
 import type { Produit } from '../../types';
-import { offlineStore } from '../../services/offlineDb';
+import { offlineStore, syncEngine, ventesOffline, catalogue } from '../../services/offlineDb';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { useShortcut } from '../../hooks/useKeyboardShortcuts';
 import { formatFCFA, formatDateTime } from '../../utils/format';
 import toast from 'react-hot-toast';
 import {
   Search, ShoppingCart, Trash2, Plus, Minus, X, Printer,
   CheckCircle2, User, CreditCard, Smartphone, Banknote,
-  Receipt, Loader2, Package, Tag, ChevronDown, ArrowLeft
+  Receipt, Loader2, Package, Tag, ChevronDown, ArrowLeft, Send,
+  MessageCircle
 } from 'lucide-react';
 
 const MODES = [
@@ -44,6 +48,9 @@ export default function Caisse() {
   const [offline, setOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : true);
   const [pendingCount, setPendingCount] = useState(0);
   const [vente, setVente] = useState(null); // ticket affiché après vente
+  const [showRecu, setShowRecu] = useState(false);
+  const [recuApercu, setRecuApercu] = useState('');
+  const [recuLoading, setRecuLoading] = useState(false);
   const [monnaieRendue, setMonnaieRendue] = useState(0);
   const [montantRecu, setMontantRecu] = useState('');
   const ticketRef = useRef(null);
@@ -53,39 +60,80 @@ export default function Caisse() {
     panierRef.current = panier;
   }, [panier]);
 
+  const { enLigne, syncMaintenant, compteurs } = useOnlineStatus({ autoSync: true });
+
   useEffect(() => {
     charger();
     refreshPendingCount();
 
-    const handleOnline = async () => {
-      setOffline(false);
-      await synchroniserVentes();
-      charger();
-    };
-    const handleOffline = () => setOffline(true);
-    const handleFocus = () => {
-      if (navigator.onLine) charger({ silent: true });
+    const handleFocus = async () => {
+      if (enLigne) {
+        await syncMaintenant();
+        await refreshPendingCount();
+        charger({ silent: true });
+      }
     };
     const stockInterval = setInterval(() => {
-      if (navigator.onLine && !document.hidden) charger({ silent: true });
+      if (enLigne && !document.hidden) charger({ silent: true });
     }, 5000);
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleFocus);
     return () => {
       clearInterval(stockInterval);
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
     };
-  }, []);
+  }, [enLigne]);
+
+  // Raccourcis clavier pour la caisse
+  useShortcut('n', () => {
+    // Focus sur le premier produit
+  }, { ctrlKey: true });
+  useShortcut('e', () => {
+    // Encaisser
+    if (!loading && enLigne) {
+      const total = panier.reduce((s, p) => s + p.prix_vente * p.qte, 0);
+      if (total > 0) {
+        encaisser();
+      }
+    }
+  }, { ctrlKey: true });
+  useShortcut('c', () => {
+    // Changer mode de paiement
+    const nouveauxModes = ['especes', 'momo', 'carte', 'credit'];
+    const idx = nouveauxModes.indexOf(mode);
+    setMode(nouveauxModes[(idx + 1) % nouveauxModes.length]);
+  });
+  useShortcut('Escape', () => {
+    // Fermer modales
+    if (showRecu) setShowRecu(false);
+  });
+  useShortcut('p', () => {
+    // Imprimer ticket
+    if (vente) imprimerTicket();
+  }, { ctrlKey: true });
+
+  // Sync lorsque l'état change
+  useEffect(() => {
+    if (enLigne) {
+      setOffline(false);
+      syncMaintenant();
+      refreshPendingCount();
+      charger({ silent: true });
+    } else {
+      setOffline(true);
+    }
+  }, [enLigne]);
+
+  // Compteurs同步
+  useEffect(() => {
+    setPendingCount(compteurs.ventes);
+  }, [compteurs.ventes]);
 
   const refreshPendingCount = async () => {
     try {
-      setPendingCount(await offlineStore.getPendingCount());
+      setPendingCount(await ventesOffline.getPendingCount());
     } catch {}
   };
 
@@ -148,10 +196,13 @@ export default function Caisse() {
   const synchroniserVentes = async () => {
     if (!navigator.onLine) return;
     try {
-      const result = await offlineStore.syncVentes((payload) => ventesAPI.creer(payload));
+      const result = await syncEngine.syncTout({
+        sendVente: async (payload) => ventesAPI.creer(payload as any),
+        sendAction: async () => {}, // pas d'actions pour l'instant
+      });
       await refreshPendingCount();
-      if (result.synced > 0) toast.success(`${result.synced} vente(s) synchronisee(s)`);
-      if (result.conflicts > 0) toast.error(`${result.conflicts} vente(s) en conflit de stock`);
+      if (result.ventes.synced > 0) toast.success(`${result.ventes.synced} vente(s) synchronisée(s)`);
+      if (result.ventes.conflicts > 0) toast.error(`${result.ventes.conflicts} conflit(s) — voir Paramètres > Synchronisation`);
     } catch {}
   };
 
@@ -191,7 +242,7 @@ export default function Caisse() {
 
   const enregistrerVenteHorsLigne = async (payload) => {
     const queued = await offlineStore.queueVente(payload, {
-      boutique_id: boutique?.id,
+      boutique_id: boutique?.id || '',
       lignes: panier,
       client: clients.find(c => c.id === clientId),
       boutique,
@@ -200,7 +251,7 @@ export default function Caisse() {
       total_final: totalFinal,
     });
     await refreshPendingCount();
-    const cached = await offlineStore.getCatalogue();
+    const cached = await catalogue.get();
     setProduits(cached.produits || produits);
     setOffline(true);
     setVente({
@@ -220,7 +271,7 @@ export default function Caisse() {
     });
     setMonnaieRendue(monnaie);
     setPanier([]); setRemise(0); setNotes(''); setClientId(''); setMontantRecu('');
-    toast.success('Vente enregistree hors ligne');
+    toast.success(`Vente enregistrée hors ligne — sera synchronisée au retour du réseau`, { icon: '📴', duration: 4000 });
   };
 
   const encaisser = async () => {
@@ -231,7 +282,9 @@ export default function Caisse() {
       return;
     }
     setLoading(true);
+    const localId = `vente-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const payload = {
+      local_id: localId, // pour idempotence
       lignes: panier.map(i => ({ produit_id: i.id, quantite: i.qte, prix_unitaire: i.prix_vente, prix_achat: i.prix_achat || 0, nom_produit: i.nom })),
       mode_paiement: mode, remise, notes,
       client_id: clientId || undefined,
@@ -246,11 +299,17 @@ export default function Caisse() {
 
       const { data } = await ventesAPI.creer(payload);
       if (data.success) {
-        setVente({ ...data.data, lignes: panier, boutique, client: clients.find(c => c.id === clientId), montant_recu: montantRecu || data.data.montant_recu, monnaieRendue: monnaie });
+        setVente({ ...data.data, lignes_vente: panier, lignes: panier, boutique, client: clients.find(c => c.id === clientId), clients: clients.find(c => c.id === clientId), montant_recu: montantRecu || data.data.montant_recu, monnaieRendue: monnaie });
         setMonnaieRendue(monnaie);
         setPanier([]); setRemise(0); setNotes(''); setClientId(''); setMontantRecu('');
         charger();
         toast.success('Vente enregistrée !', { icon: '🎉' });
+        // Attribution automatique de points de fidélité (silencieuse, en arrière-plan)
+        if (clientId) {
+          fideliteAPI.attribuer({ vente_id: data.data.id, vente_total: totalFinal })
+            .then(r => { if ((r.data as any)?.nouvelle_solde) toast.success(`+ points fidélité !`, { icon: '⭐' }); })
+            .catch(() => {});
+        }
       }
     } catch (e) {
       if (!e.response) {
@@ -401,6 +460,19 @@ export default function Caisse() {
               className="btn btn-primary btn-lg flex-1">
               <Printer size={18}/> Imprimer le ticket
             </button>
+            <button onClick={async () => {
+              setShowRecu(true);
+              if (vente?.id) {
+                setRecuLoading(true);
+                try {
+                  const r: any = await recusAPI.preview({ vente_id: vente.id });
+                  setRecuApercu(r.data.data.recuTxt);
+                } catch { setRecuApercu('Reçu indisponible hors ligne.'); }
+                setRecuLoading(false);
+              }
+            }} className="btn btn-secondary btn-lg flex-1">
+              <Send size={18}/> Envoyer le reçu
+            </button>
             <button onClick={() => setVente(null)}
               className="btn btn-secondary btn-lg flex-1">
               <ArrowLeft size={18}/> Nouvelle vente
@@ -411,8 +483,85 @@ export default function Caisse() {
     );
   }
 
+  // Modal d'envoi du reçu
+  if (showRecu && vente) {
+    const telephoneClient = vente.clients?.telephone || '';
+    const [destTel, setDestTel] = useState(telephoneClient);
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="card p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              <MessageCircle size={20} className="text-emerald-600"/>
+              Envoyer le reçu
+            </h3>
+            <button onClick={() => setShowRecu(false)}><X size={18}/></button>
+          </div>
+
+          {/* Numéro de destination (modifiable) */}
+          <div className="mb-3">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1 block">
+              Numéro de téléphone
+            </label>
+            <input
+              type="tel"
+              className="input text-sm py-2"
+              placeholder="Ex: +229 0141911519"
+              value={destTel}
+              onChange={e => setDestTel(e.target.value)}
+            />
+            {telephoneClient && <p className="text-xs text-gray-400 mt-1">Numéro du client : {telephoneClient}</p>}
+          </div>
+
+          <div className="bg-gray-50 rounded-xl p-3 text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto mb-3">
+            {recuLoading ? 'Chargement…' : recuApercu || 'Aperçu du reçu indisponible.'}
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              disabled={!destTel}
+              onClick={async () => {
+                if (!destTel) return toast.error('Saisissez un numéro de téléphone.');
+                try {
+                  await recusAPI.envoyer({ vente_id: vente.id, canal: 'sms', telephone: destTel });
+                  toast.success('Reçu envoyé par SMS !');
+                  setShowRecu(false);
+                } catch (err) { toast.error(err.response?.data?.message || 'Échec.'); }
+              }}
+              className="btn btn-primary btn-md flex-1 disabled:opacity-50 disabled:cursor-not-allowed">
+              <Send size={14}/> SMS
+            </button>
+            <button
+              disabled={!destTel}
+              onClick={async () => {
+                if (!destTel) return toast.error('Saisissez un numéro de téléphone.');
+                try {
+                  await recusAPI.envoyer({ vente_id: vente.id, canal: 'whatsapp', telephone: destTel });
+                  toast.success('Reçu envoyé par WhatsApp !');
+                  setShowRecu(false);
+                } catch (err) { toast.error(err.response?.data?.message || 'Échec.'); }
+              }}
+              className="btn btn-primary btn-md flex-1 bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed">
+              <MessageCircle size={14}/> WhatsApp
+            </button>
+          </div>
+          <a
+            href={destTel ? `https://wa.me/${destTel.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(recuApercu)}` : '#'}
+            target="_blank" rel="noreferrer"
+            className="btn btn-secondary btn-sm w-full mt-2"
+          >
+            Ouvrir WhatsApp manuellement
+          </a>
+          <button onClick={() => setShowRecu(false)} className="btn btn-secondary btn-md w-full mt-3">
+            Fermer
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full flex gap-4 lg:gap-5" style={{minHeight: 'calc(100vh - 120px)'}}>
+    <div className="min-h-[calc(100vh-120px)] flex flex-col xl:flex-row gap-4 lg:gap-5">
       {/* ── GAUCHE : Produits ── */}
       <div className="flex-1 flex flex-col min-w-0">
         {(offline || pendingCount > 0) && (
@@ -422,13 +571,13 @@ export default function Caisse() {
           </div>
         )}
         {/* Recherche + filtre */}
-        <div className="flex gap-2 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 mb-4">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
             <input className="input pl-9" placeholder="Rechercher un produit ou scanner..."
               value={search} onChange={e=>setSearch(e.target.value)}/>
           </div>
-          <select className="input w-auto" value={catFilter} onChange={e=>setCatFilter(e.target.value)}>
+          <select className="input sm:w-44" value={catFilter} onChange={e=>setCatFilter(e.target.value)}>
             <option value="all">Toutes</option>
             {categories.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>
@@ -446,14 +595,14 @@ export default function Caisse() {
             {search && <p className="text-sm">Essayez un autre terme de recherche</p>}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 overflow-y-auto scrollbar-thin pr-1 pb-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 xl:overflow-y-auto scrollbar-thin pr-1 pb-4">
             {produitsFiltres.map(p => {
               const inCart = panier.find(i => i.id === p.id);
               return (
                 <button key={p.id} onClick={() => ajouterAuPanier(p)}
-                  className={`card-hover text-left p-3 flex flex-col gap-1 relative group active:scale-95 transition-all ${
-                    inCart ? 'ring-2 ring-emerald-500 bg-emerald-50' : ''
-                  } ${p.stock_actuel <= p.stock_minimum ? 'border-amber-200' : ''}`}>
+                  className={`card-hover text-left p-3 flex flex-col gap-1 relative group active:scale-95 transition-all cursor-pointer ${
+                    inCart ? 'ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : 'dark:bg-gray-800 dark:border-gray-700'
+                  } ${p.stock_actuel <= p.stock_minimum ? 'border-amber-200 dark:border-amber-500/40' : 'dark:border-gray-700'}`}>
                   {inCart && (
                     <div className="absolute -top-2 -right-2 w-6 h-6 bg-emerald-600 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md">
                       {inCart.qte}
@@ -476,13 +625,13 @@ export default function Caisse() {
       </div>
 
       {/* ── DROITE : Panier ── */}
-      <div className="w-72 lg:w-80 flex flex-col flex-shrink-0">
-        <div className="card flex flex-col h-full shadow-md">
+      <div className="w-full xl:w-80 flex flex-col flex-shrink-0">
+        <div className="card flex flex-col max-h-none xl:h-full xl:max-h-[calc(100vh-120px)] shadow-md dark:bg-gray-800 dark:border-gray-700">
           {/* Header panier */}
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShoppingCart size={18} className="text-emerald-600"/>
-              <span className="font-bold text-gray-900">Panier</span>
+              <span className="font-bold text-gray-900 dark:text-gray-100">Panier</span>
               {panier.length > 0 && (
                 <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded-full">
                   {panier.reduce((s,i)=>s+i.qte,0)}
@@ -505,25 +654,25 @@ export default function Caisse() {
                 <p className="text-xs">Cliquez sur un produit</p>
               </div>
             ) : panier.map(item => (
-              <div key={item.id} className="bg-gray-50 rounded-xl p-2.5 fade-in">
+              <div key={item.id} className="bg-gray-50 dark:bg-gray-700/80 rounded-xl p-2.5 fade-in">
                 <div className="flex items-start justify-between gap-2 mb-1.5">
-                  <span className="text-sm font-semibold text-gray-900 leading-tight">{item.nom}</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight">{item.nom}</span>
                   <button onClick={() => setPanier(p => p.filter(i => i.id !== item.id))}
-                    className="text-gray-300 hover:text-red-500 flex-shrink-0 transition-colors">
+                    className="text-gray-300 hover:text-red-500 flex-shrink-0 transition-colors cursor-pointer">
                     <X size={14}/>
                   </button>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <button onClick={() => modifierQte(item.id, -1)} className="w-6 h-6 bg-white border border-gray-200 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors">
+                    <button onClick={() => modifierQte(item.id, -1)} className="w-6 h-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer">
                       <Minus size={11}/>
                     </button>
-                    <span className="text-sm font-bold w-6 text-center">{item.qte}</span>
-                    <button onClick={() => modifierQte(item.id, +1)} className="w-6 h-6 bg-white border border-gray-200 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors">
+                    <span className="text-sm font-bold w-6 text-center dark:text-gray-200">{item.qte}</span>
+                    <button onClick={() => modifierQte(item.id, +1)} className="w-6 h-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer">
                       <Plus size={11}/>
                     </button>
                   </div>
-                  <span className="text-sm font-bold text-emerald-700">{formatFCFA(item.prix_vente * item.qte)}</span>
+                  <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">{formatFCFA(item.prix_vente * item.qte)}</span>
                 </div>
               </div>
             ))}
@@ -538,8 +687,8 @@ export default function Caisse() {
                 <div className="grid grid-cols-2 gap-1.5">
                   {MODES.map(m => (
                     <button key={m.id} onClick={() => setMode(m.id)}
-                      className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-bold border-2 transition-all ${
-                        mode === m.id ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-bold border-2 transition-all cursor-pointer ${
+                        mode === m.id ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200' : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-600 dark:text-gray-200 dark:hover:border-gray-500'
                       }`}>
                       <m.icon size={13}/> {m.label}
                     </button>
@@ -585,19 +734,19 @@ export default function Caisse() {
               </div>
 
               {/* Total */}
-              <div className="bg-emerald-50 rounded-xl p-3 space-y-1">
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-3 space-y-1">
                 {remise > 0 && (
-                  <div className="flex justify-between text-xs text-gray-500">
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-300">
                     <span>Sous-total</span><span>{formatFCFA(total)}</span>
                   </div>
                 )}
                 {remise > 0 && (
-                  <div className="flex justify-between text-xs text-emerald-600 font-semibold">
+                  <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-300 font-semibold">
                     <span>Remise</span><span>- {formatFCFA(remise)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-base font-extrabold text-gray-900">
-                  <span>TOTAL</span><span className="text-emerald-700">{formatFCFA(totalFinal)}</span>
+                <div className="flex justify-between text-base font-extrabold text-gray-900 dark:text-gray-100">
+                  <span>TOTAL</span><span className="text-emerald-700 dark:text-emerald-300">{formatFCFA(totalFinal)}</span>
                 </div>
               </div>
 

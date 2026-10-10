@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ventesAPI } from '../../services/api';
+import { useAuthStore } from '../../store/authStore';
 import { formatFCFA, formatDate, formatDateTime, modePaiementLabel, modePaiementColor } from '../../utils/format';
 import {
   CalendarDays, ChevronDown, ChevronRight, CreditCard, Loader2,
@@ -11,12 +12,14 @@ const today = new Date().toISOString().split('T')[0];
 const firstDayOfMonth = today.slice(0, 7) + '-01';
 
 export default function HistoriqueVentes() {
+  const { user } = useAuthStore();
   const [filters, setFilters] = useState({ debut: firstDayOfMonth, fin: today, mode_paiement: '' });
   const [groupes, setGroupes] = useState([]);
   const [resume, setResume] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState({});
+  const isAdmin = user?.role === 'admin';
 
   const charger = async () => {
     setLoading(true);

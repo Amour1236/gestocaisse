@@ -1,9 +1,67 @@
 {
+  "name": "GestoCaisse — Logiciel de caisse pour TPE",
   "short_name": "GestoCaisse",
-  "name": "GestoCaisse — Caisse & Stock",
-  "icons": [{"src": "favicon.ico","sizes": "64x64","type": "image/x-icon"}],
-  "start_url": ".",
+  "description": "Logiciel de caisse, gestion de stock et rapports pour commerçants africains. Fonctionne hors ligne.",
+  "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
   "theme_color": "#059669",
-  "background_color": "#ffffff"
+  "background_color": "#ffffff",
+  "lang": "fr-FR",
+  "dir": "ltr",
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Ouvrir la Caisse",
+      "short_name": "Caisse",
+      "description": "Ouvrir le module de vente",
+      "url": "/app/caisse",
+      "icons": [{ "src": "/Logo.png", "sizes": "96x96", "purpose": "any maskable" }]
+    },
+    {
+      "name": "Tableau de bord",
+      "short_name": "Dashboard",
+      "description": "Voir les statistiques",
+      "url": "/app",
+      "icons": [{ "src": "/Logo.png", "sizes": "96x96", "purpose": "any maskable" }]
+    }
+  ],
+  "icons": [
+    {
+      "src": "/Logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-gestocaisse.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/caisse.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "label": "Module Caisse"
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "handless_enabled": true
 }

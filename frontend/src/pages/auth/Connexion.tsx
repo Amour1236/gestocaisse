@@ -13,7 +13,14 @@ export default function Connexion() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const r = await connexion(form.email, form.mot_de_passe);
-    if (r?.success) { navigate('/app'); toast.success('Bienvenue !'); }
+    if (r?.success) {
+      // Récupérer l'utilisateur stocké pour connaître son rôle
+      const userStr = localStorage.getItem('gc_user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      const redirectPath = user?.role === 'admin' ? '/app/admin' : '/app';
+      navigate(redirectPath);
+      toast.success('Bienvenue !');
+    }
     else toast.error(r?.message || 'Identifiants incorrects');
   };
 
